@@ -1,0 +1,18 @@
+[
+  {
+    "id": "r001",
+    "type": "mutual_exclusion",
+    "name": "夫妻互斥",
+    "participantIds": ["p001", "p002"],
+    "description": "张三和李四是夫妻，不能同时中奖",
+    "isActive": true
+  },
+  {
+    "id": "r002",
+    "type": "mutual_exclusion",
+    "name": "同组互斥",
+    "participantIds": ["p003", "p004"],
+    "description": "王五和赵六是同一个项目组，不能同时中奖",
+    "isActive": false
+  }
+]
