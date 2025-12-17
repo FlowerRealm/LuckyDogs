@@ -1,7 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.luckydogs.lottery",
-  "productName": "幸运抽奖",
+  "productName": "LuckyDogs",
+  "artifactName": "LuckyDogs-${version}-${arch}.${ext}",
   "directories": {
     "output": "release"
   },
@@ -19,7 +20,9 @@
   "asar": true,
   "win": {
     "target": ["nsis", "portable"],
-    "icon": "resources/icon.png"
+    "icon": "resources/icon.png",
+    "executableName": "LuckyDogs",
+    "fileDescription": ""
   },
   "mac": {
     "target": ["dmg", "zip"],

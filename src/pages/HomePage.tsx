@@ -115,7 +115,7 @@ export const HomePage: React.FC = () => {
       <header className="flex-none h-16 bg-white/80 backdrop-blur-md border-b border-theme-border flex items-center justify-between px-8 z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-theme-primary rounded-lg flex items-center justify-center text-white font-bold">L</div>
-          <h1 className="text-xl font-bold text-theme-text-main tracking-tight">Lucky Draw</h1>
+          <h1 className="text-xl font-bold text-theme-text-main tracking-tight">Lucky Dogs</h1>
         </div>
 
         {/* 简单统计 */}
