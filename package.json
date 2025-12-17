@@ -2,7 +2,7 @@
   "name": "lucky-dogs",
   "version": "1.0.0",
   "type": "module",
-  "description": "带权重和互斥规则的抽奖程序",
+  "description": "神秘抽奖程序",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
