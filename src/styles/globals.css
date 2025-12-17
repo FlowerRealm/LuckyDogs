@@ -2,98 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 全局样式 */
 :root {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #0f0a1e 0%, #1a1033 50%, #0f0a1e 100%);
-  background-attachment: fixed;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: theme('colors.theme.bg');
+  color: theme('colors.theme.text.main');
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 自定义滚动条 */
+/* 滚动条美化 */
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: #cbd5e1;
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: #94a3b8;
 }
 
-/* 选择文本颜色 */
-::selection {
-  background: rgba(217, 70, 239, 0.3);
-  color: white;
+/* 基础卡片类 */
+.card-base {
+  @apply bg-theme-card rounded-2xl shadow-soft border border-theme-border;
 }
 
-/* 输入框自动填充样式 */
-input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.1) inset !important;
-  -webkit-text-fill-color: white !important;
-}
-
-/* 翻转卡片 3D 效果 */
+/* 3D 翻牌效果 */
 .flip-card-container {
   perspective: 1000px;
 }
 
 .flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.6s ease-in-out;
+  transition: transform 0.05s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.flip-card-front,
-.flip-card-back {
-  backface-visibility: hidden;
-}
-
-.flip-card-back {
+.flip-card.flipped {
   transform: rotateY(180deg);
 }
 
-/* 动画 */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(217, 70, 239, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(217, 70, 239, 0.6);
-  }
+.flip-card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+.flip-card-back {
+  transform: rotateY(0deg);
 }
 
-/* 渐变文字 */
-.gradient-text {
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* 玻璃效果 */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.flip-card-front {
+  transform: rotateY(180deg);
 }

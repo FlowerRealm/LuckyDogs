@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { fileURLToPath } from 'url'
 import path, { dirname } from 'path'
 import fs from 'fs'
+import { registerLotteryHandlers } from './ipc/lotteryHandlers'
 
 // ESM 兼容：定义 __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -19,7 +20,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 700,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -34,10 +35,17 @@ function createWindow() {
     mainWindow?.show()
   })
 
+  // F12 打开开发者工具
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      mainWindow?.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+  })
+
   // 加载页面
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
@@ -77,21 +85,9 @@ async function loadDefaultConfig() {
 
 // 注册 IPC 处理
 function registerIpcHandlers() {
-  // 加载配置
+  // 加载配置 - 始终从 config 目录读取最新配置
   ipcMain.handle('config:load', async () => {
-    const userDataPath = getUserDataPath()
-
-    try {
-      // 尝试从用户目录加载
-      const userConfig = await fs.promises.readFile(userDataPath, 'utf-8')
-      return JSON.parse(userConfig)
-    } catch {
-      // 用户配置不存在，使用默认配置
-      const defaultConfig = await loadDefaultConfig()
-      // 保存到用户目录
-      await fs.promises.writeFile(userDataPath, JSON.stringify(defaultConfig, null, 2), 'utf-8')
-      return defaultConfig
-    }
+    return await loadDefaultConfig()
   })
 
   // 保存配置
@@ -152,7 +148,11 @@ function registerIpcHandlers() {
 
 // 应用启动
 app.whenReady().then(() => {
+  // 隐藏菜单栏
+  Menu.setApplicationMenu(null)
+
   registerIpcHandlers()
+  registerLotteryHandlers()
   createWindow()
 
   app.on('activate', () => {

@@ -13,7 +13,7 @@
     "build:mac": "npm run build && electron-builder --config build/electron-builder.json --mac"
   },
   "keywords": ["lottery", "electron", "react"],
-  "author": "",
+  "author": "FlowerRealm <flower_realm@outlook.com>",
   "license": "MIT",
   "dependencies": {
     "react": "^18.2.0",

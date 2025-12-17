@@ -5,21 +5,11 @@ export interface Winner {
   drawOrder: number // 在本轮中的抽取顺序
 }
 
-// 被排除记录
-export interface ExcludedRecord {
-  participantId: string
-  participantName: string
-  reason: string
-  ruleId: string
-  triggeredBy: string // 触发排除的中奖者 ID
-}
-
 // 抽奖轮次
 export interface LotteryRound {
   roundNumber: number
   drawCount: number
   winners: Winner[]
-  excludedByRule: ExcludedRecord[]
   timestamp: string
 }
 

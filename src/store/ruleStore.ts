@@ -1,7 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
-import { Rule, RuleInput, MutualExclusionRule } from '@/types'
+import { Rule, RuleInput, BindingRule } from '@/types'
 
 interface RuleState {
   rules: Rule[]
@@ -20,63 +19,58 @@ interface RuleState {
 }
 
 export const useRuleStore = create<RuleState>()(
-  persist(
-    (set, get) => ({
-      rules: [],
+  (set, get) => ({
+    rules: [],
 
-      setRules: (rules) => set({ rules }),
+    setRules: (rules) => set({ rules }),
 
-      addRule: (input) => {
-        const newRule: Rule = {
-          id: uuidv4(),
-          type: input.type,
-          name: input.name,
-          participantIds: input.participantIds,
-          description: input.description,
-          isActive: input.isActive ?? true,
-        } as MutualExclusionRule
+    addRule: (input) => {
+      const newRule: Rule = {
+        id: uuidv4(),
+        type: input.type,
+        name: input.name,
+        participantIds: input.participantIds,
+        description: input.description,
+        isActive: input.isActive ?? true,
+      } as BindingRule
 
-        set((state) => ({
-          rules: [...state.rules, newRule],
-        }))
-      },
+      set((state) => ({
+        rules: [...state.rules, newRule],
+      }))
+    },
 
-      updateRule: (id, input) => {
-        set((state) => ({
-          rules: state.rules.map((r) =>
-            r.id === id ? { ...r, ...input } : r
-          ),
-        }))
-      },
+    updateRule: (id, input) => {
+      set((state) => ({
+        rules: state.rules.map((r) =>
+          r.id === id ? { ...r, ...input } : r
+        ),
+      }))
+    },
 
-      deleteRule: (id) => {
-        set((state) => ({
-          rules: state.rules.filter((r) => r.id !== id),
-        }))
-      },
+    deleteRule: (id) => {
+      set((state) => ({
+        rules: state.rules.filter((r) => r.id !== id),
+      }))
+    },
 
-      toggleRule: (id) => {
-        set((state) => ({
-          rules: state.rules.map((r) =>
-            r.id === id ? { ...r, isActive: !r.isActive } : r
-          ),
-        }))
-      },
+    toggleRule: (id) => {
+      set((state) => ({
+        rules: state.rules.map((r) =>
+          r.id === id ? { ...r, isActive: !r.isActive } : r
+        ),
+      }))
+    },
 
-      getActiveRules: () => {
-        return get().rules.filter((r) => r.isActive)
-      },
+    getActiveRules: () => {
+      return get().rules.filter((r) => r.isActive)
+    },
 
-      getRuleById: (id) => {
-        return get().rules.find((r) => r.id === id)
-      },
+    getRuleById: (id) => {
+      return get().rules.find((r) => r.id === id)
+    },
 
-      getRulesForParticipant: (participantId) => {
-        return get().rules.filter((r) => r.participantIds.includes(participantId))
-      },
-    }),
-    {
-      name: 'rule-storage',
-    }
-  )
+    getRulesForParticipant: (participantId) => {
+      return get().rules.filter((r) => r.participantIds.includes(participantId))
+    },
+  })
 )

@@ -1,6 +1,6 @@
 import { Participant, ParticipantInput } from './participant'
-import { Rule, RuleInput, RuleType, MutualExclusionRule } from './rule'
-import { Winner, ExcludedRecord, LotteryRound, LotterySession, LotteryState } from './lottery'
+import { Rule, RuleInput, RuleType, BindingRule } from './rule'
+import { Winner, LotteryRound, LotterySession, LotteryState } from './lottery'
 
 // 应用配置
 export interface AppConfig {
@@ -15,9 +15,8 @@ export type {
   ParticipantInput,
   Rule,
   RuleInput,
-  MutualExclusionRule,
+  BindingRule,
   Winner,
-  ExcludedRecord,
   LotteryRound,
   LotterySession,
   LotteryState,

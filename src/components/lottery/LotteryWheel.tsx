@@ -1,231 +1,186 @@
-import { useState, useCallback, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Play, RotateCcw, Users, Trophy } from 'lucide-react'
-import { FlipCard } from './FlipCard'
-import { createLotteryEngine } from '@/services/lotteryEngine'
-import { useParticipantStore, useRuleStore, useLotteryStore } from '@/store'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
+import { useLotteryStore } from '@/store'
+import FlipCard from './FlipCard'
 import { Winner } from '@/types'
 
-export function LotteryWheel() {
-  const participants = useParticipantStore((s) => s.participants)
-  const markAsWinner = useParticipantStore((s) => s.markAsWinner)
-  const resetWinners = useParticipantStore((s) => s.resetWinners)
-  const rules = useRuleStore((s) => s.rules)
-
+export const LotteryWheel: React.FC = () => {
   const {
+    pendingWinners,
+    revealedWinners,
     isDrawing,
-    currentRound,
-    drawCount,
-    setDrawCount,
-    startDraw,
-    endDraw,
-    startSession,
+    revealWinner
   } = useLotteryStore()
 
-  const [winners, setWinners] = useState<Winner[]>([])
-  const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set())
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
 
-  // 计算可用人数
-  const eligibleCount = participants.filter((p) => p.wonAt === undefined).length
-  const totalWinners = participants.filter((p) => p.wonAt !== undefined).length
+  // 本地跟踪哪些卡片已翻转（用于动画）
+  const [flippedIds, setFlippedIds] = useState<Set<string>>(new Set())
 
-  // 初始化会话
-  useEffect(() => {
-    if (participants.length > 0) {
-      startSession(participants.length)
+  // 使用 ref 存储翻转队列，避免闭包问题
+  const flipQueueRef = useRef<Winner[]>([])
+  const isFlippingRef = useRef(false)
+  const revealWinnerRef = useRef(revealWinner)
+  revealWinnerRef.current = revealWinner
+
+  // 合并所有中奖者为一个列表
+  const allWinners = useMemo(() => {
+    return [...revealedWinners, ...pendingWinners]
+  }, [revealedWinners, pendingWinners])
+
+  const cardCount = allWinners.length + (isDrawing ? 1 : 0)
+
+  // 翻转下一张卡片的函数
+  const flipNext = () => {
+    if (flipQueueRef.current.length === 0) {
+      isFlippingRef.current = false
+      return
     }
-  }, [])
 
-  // 执行抽奖
-  const handleDraw = useCallback(() => {
-    if (eligibleCount === 0) return
+    const winner = flipQueueRef.current[0]
+    console.log('[FlipCard] 翻转卡片:', winner.participantName)
 
-    startDraw()
-    setWinners([])
-    setFlippedCards(new Set())
+    // 触发翻转动画
+    setFlippedIds(prev => new Set([...prev, winner.participantId]))
 
-    // 创建抽奖引擎
-    const engine = createLotteryEngine(participants, rules)
-    const actualDrawCount = Math.min(drawCount, eligibleCount)
-    const result = engine.drawMultiple(actualDrawCount)
+    // 动画完成后处理
+    setTimeout(() => {
+      // 更新 store
+      revealWinnerRef.current(winner)
+      // 从队列中移除
+      flipQueueRef.current = flipQueueRef.current.slice(1)
+      // 继续翻下一张
+      setTimeout(flipNext, 15)
+    }, 40)
+  }
 
-    // 标记中奖者
-    result.winners.forEach((winner) => {
-      markAsWinner(winner.participantId, currentRound + 1)
+  // 当有新的 pendingWinners 时，启动翻转
+  useEffect(() => {
+    if (pendingWinners.length > 0 && !isFlippingRef.current) {
+      console.log('[FlipCard] 检测到新的 pendingWinners:', pendingWinners.length)
+      flipQueueRef.current = [...pendingWinners]
+      isFlippingRef.current = true
+
+      // 延迟开始，让卡片先显示出来
+      setTimeout(flipNext, 25)
+    }
+  }, [pendingWinners])
+
+  // 同步已揭晓的状态（用于页面刷新等场景）
+  useEffect(() => {
+    const revealedIds = new Set(revealedWinners.map(w => w.participantId))
+    setFlippedIds(prev => {
+      const newSet = new Set(prev)
+      revealedIds.forEach(id => newSet.add(id))
+      return newSet
     })
+  }, [revealedWinners])
 
-    // 更新状态
-    setWinners(result.winners)
-    endDraw(result.winners, result.allExcluded)
-  }, [participants, rules, drawCount, eligibleCount, currentRound, startDraw, endDraw, markAsWinner])
+  // 重置状态：当 pendingWinners 和 revealedWinners 都为空时，清空本地状态
+  useEffect(() => {
+    if (pendingWinners.length === 0 && revealedWinners.length === 0) {
+      setFlippedIds(new Set())
+      flipQueueRef.current = []
+      isFlippingRef.current = false
+    }
+  }, [pendingWinners.length, revealedWinners.length])
 
-  // 翻转卡片
-  const handleFlip = useCallback((index: number) => {
-    setFlippedCards((prev) => new Set([...prev, index]))
+  // 监听容器尺寸变化
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateSize = () => {
+      const { width, height } = container.getBoundingClientRect()
+      setContainerSize({ width, height })
+    }
+
+    updateSize()
+
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      setContainerSize({ width, height })
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
   }, [])
 
-  // 一键翻转所有
-  const handleFlipAll = useCallback(() => {
-    setFlippedCards(new Set(winners.map((_, i) => i)))
-  }, [winners])
+  // 自适应网格算法
+  const gridConfig = useMemo(() => {
+    const { width, height } = containerSize
+    const gap = 12
 
-  // 重置本轮
-  const handleReset = useCallback(() => {
-    setWinners([])
-    setFlippedCards(new Set())
-  }, [])
+    if (width === 0 || height === 0 || cardCount === 0) {
+      return { cols: 8, cardSize: 100 }
+    }
 
-  // 重置所有（重新开始）
-  const handleResetAll = useCallback(() => {
-    resetWinners()
-    setWinners([])
-    setFlippedCards(new Set())
-    startSession(participants.length)
-  }, [resetWinners, participants.length, startSession])
+    const aspectRatio = width / height
+    const idealCols = Math.ceil(Math.sqrt(cardCount * aspectRatio))
+    const cols = Math.max(1, Math.min(idealCols, cardCount))
+    const rows = Math.ceil(cardCount / cols)
+
+    const availableWidth = width - (cols - 1) * gap
+    const availableHeight = height - (rows - 1) * gap
+
+    const maxCardWidth = availableWidth / cols
+    const maxCardHeight = availableHeight / rows
+    const cardSize = Math.floor(Math.min(maxCardWidth, maxCardHeight))
+
+    const finalSize = Math.max(60, Math.min(180, cardSize))
+
+    return { cols, cardSize: finalSize, gap }
+  }, [containerSize, cardCount])
+
+  if (allWinners.length === 0 && !isDrawing) {
+    return (
+      <div
+        ref={containerRef}
+        className="h-full flex flex-col items-center justify-center text-theme-text-light p-10 border-2 border-dashed border-slate-200 rounded-3xl"
+      >
+        <div className="text-6xl mb-4 opacity-20">🎲</div>
+        <p className="text-lg">准备就绪，点击下方按钮开始抽奖</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col items-center gap-8 p-6">
-      {/* 统计信息 */}
-      <div className="flex gap-6 text-white/80">
-        <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-          <Users className="w-5 h-5" />
-          <span>总人数: {participants.length}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-          <span className="text-green-400">可抽: {eligibleCount}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-          <Trophy className="w-5 h-5 text-yellow-400" />
-          <span>已中奖: {totalWinners}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-          <span>第 {currentRound} 轮</span>
-        </div>
-      </div>
+    <div ref={containerRef} className="w-full h-full">
+      <div
+        className="h-full"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${gridConfig.cols}, ${gridConfig.cardSize}px)`,
+          gap: `${gridConfig.gap || 12}px`,
+          justifyContent: 'center',
+          alignContent: 'center',
+        }}
+      >
+        {/* 渲染所有中奖者卡片 */}
+        {allWinners.map((winner) => {
+          const isFlipped = flippedIds.has(winner.participantId)
 
-      {/* 卡片展示区 */}
-      <div className="min-h-[280px] flex items-center justify-center">
-        <AnimatePresence mode="wait">
-          {winners.length > 0 ? (
-            <motion.div
-              key="cards"
-              className="flex flex-wrap justify-center gap-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {winners.map((winner, index) => (
-                <FlipCard
-                  key={winner.participantId}
-                  winner={winner}
-                  isFlipped={flippedCards.has(index)}
-                  onFlip={() => handleFlip(index)}
-                  index={index}
-                />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="placeholder"
-              className="text-white/40 text-lg"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {eligibleCount > 0 ? '点击下方按钮开始抽奖' : '没有可抽奖的参与者'}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          return (
+            <FlipCard
+              key={winner.participantId}
+              winner={winner}
+              isRevealed={isFlipped}
+              size={gridConfig.cardSize}
+            />
+          )
+        })}
 
-      {/* 控制区 */}
-      <div className="flex items-center gap-4">
-        {/* 抽取人数输入 */}
-        <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-          <span className="text-white/80">抽取</span>
-          <input
-            type="number"
-            min="1"
-            value={drawCount}
-            onChange={(e) => setDrawCount(Math.max(1, parseInt(e.target.value) || 1))}
-            className="bg-white/10 text-white text-center w-16 px-2 py-1 rounded
-                       border border-white/20 focus:border-purple-500 outline-none"
-          />
-          <span className="text-white/80">人</span>
-        </div>
-
-        {/* 开始抽奖按钮 */}
-        <motion.button
-          onClick={handleDraw}
-          disabled={eligibleCount === 0 || isDrawing}
-          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600
-                     hover:from-purple-500 hover:to-pink-500 disabled:from-gray-600 disabled:to-gray-600
-                     text-white px-8 py-3 rounded-lg font-bold text-lg
-                     shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50
-                     transition-all disabled:cursor-not-allowed"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Play className="w-5 h-5" />
-          开始抽奖
-        </motion.button>
-
-        {/* 一键翻转 */}
-        {winners.length > 0 && flippedCards.size < winners.length && (
-          <motion.button
-            onClick={handleFlipAll}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400
-                       text-white px-4 py-3 rounded-lg transition-colors"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
+        {/* 如果正在抽奖中（Loading态） */}
+        {isDrawing && (
+          <div
+            className="card-base animate-pulse flex items-center justify-center"
+            style={{ width: gridConfig.cardSize, height: gridConfig.cardSize }}
           >
-            全部揭晓
-          </motion.button>
-        )}
-
-        {/* 重置按钮 */}
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/20
-                     text-white px-4 py-3 rounded-lg transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-          清空
-        </button>
-      </div>
-
-      {/* 重新开始 */}
-      {totalWinners > 0 && (
-        <button
-          onClick={handleResetAll}
-          className="text-white/50 hover:text-white/80 text-sm underline transition-colors"
-        >
-          重置所有中奖者，重新开始
-        </button>
-      )}
-
-      {/* 本轮中奖名单 */}
-      {winners.length > 0 && flippedCards.size === winners.length && (
-        <motion.div
-          className="bg-white/5 rounded-xl p-4 w-full max-w-2xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h3 className="text-white/80 text-sm mb-3">本轮中奖名单</h3>
-          <div className="flex flex-wrap gap-3">
-            {winners.map((winner) => (
-              <div
-                key={winner.participantId}
-                className="flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-orange-500/20
-                           px-3 py-2 rounded-lg border border-amber-500/30"
-              >
-                <Trophy className="w-4 h-4 text-yellow-400" />
-                <span className="text-white font-medium">{winner.participantName}</span>
-              </div>
-            ))}
+            <div className="w-8 h-8 border-4 border-theme-primary/30 border-t-theme-primary rounded-full animate-spin"></div>
           </div>
-        </motion.div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
+
+export default LotteryWheel

@@ -1,20 +1,20 @@
 // 规则类型枚举
 export enum RuleType {
-  MUTUAL_EXCLUSION = 'mutual_exclusion', // 互斥规则
+  BINDING = 'binding', // 绑定规则
 }
 
-// 互斥规则
-export interface MutualExclusionRule {
+// 绑定规则
+export interface BindingRule {
   id: string
-  type: RuleType.MUTUAL_EXCLUSION
+  type: RuleType.BINDING
   name: string
-  participantIds: string[] // 互斥的参与者 ID 列表
+  participantIds: string[] // 绑定的参与者 ID 列表
   description?: string
   isActive: boolean
 }
 
 // 联合类型，便于扩展
-export type Rule = MutualExclusionRule
+export type Rule = BindingRule
 
 // 规则输入类型
 export interface RuleInput {

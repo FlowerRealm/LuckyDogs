@@ -1,18 +1,10 @@
 [
   {
     "id": "r001",
-    "type": "mutual_exclusion",
-    "name": "夫妻互斥",
-    "participantIds": ["p001", "p002"],
-    "description": "张三和李四是夫妻，不能同时中奖",
+    "type": "binding",
+    "name": "任叶涵与周雨泽绑定",
+    "participantIds": ["p003", "p024"],
+    "description": "任叶涵与周雨泽绑定获奖，一人中奖则另一人也中奖",
     "isActive": true
-  },
-  {
-    "id": "r002",
-    "type": "mutual_exclusion",
-    "name": "同组互斥",
-    "participantIds": ["p003", "p004"],
-    "description": "王五和赵六是同一个项目组，不能同时中奖",
-    "isActive": false
   }
 ]

@@ -1,7 +1,32 @@
-import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { HomePage } from '@/pages'
-import { useParticipantStore, useRuleStore } from '@/store'
+import { HomePage } from './pages/HomePage'
+import { Winner } from '@/types'
+
+// 抽奖 API 类型
+interface LotteryStats {
+  totalParticipants: number
+  eligibleCount: number
+  winnersCount: number
+}
+
+interface EngineInitData {
+  participants: any[]
+  rules: any[]
+}
+
+interface EngineInitResult {
+  success: boolean
+  stats: LotteryStats
+  error?: string
+}
+
+interface DrawResult {
+  winner: Winner | null
+  boundWinners: Winner[] // 绑定规则触发的自动中奖者
+}
+
+interface MultiDrawResult {
+  winners: Winner[]
+}
 
 // Electron API 类型声明
 declare global {
@@ -18,35 +43,25 @@ declare global {
         getVersion: () => Promise<string>
         getPlatform: () => string
       }
+      lottery: {
+        init: (data: EngineInitData) => Promise<EngineInitResult>
+        destroy: () => Promise<void>
+        drawOne: () => Promise<DrawResult>
+        drawMultiple: (count: number) => Promise<MultiDrawResult>
+        resetRound: () => Promise<void>
+        getStats: () => Promise<LotteryStats>
+        getWinners: () => Promise<string[]>
+      }
     }
   }
 }
 
-function App() {
-  // 启动时加载配置
-  useEffect(() => {
-    const loadConfig = async () => {
-      if (window.electronAPI) {
-        const config = await window.electronAPI.config.load()
-        if (config.participants) {
-          useParticipantStore.getState().setParticipants(config.participants)
-        }
-        if (config.rules) {
-          useRuleStore.getState().setRules(config.rules)
-        }
-      }
-    }
-    loadConfig()
-  }, [])
-
+const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-lottery-bg">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
+    // 全局背景容器
+    <div className="min-h-screen w-full bg-theme-bg text-theme-text-main font-sans selection:bg-theme-primary/20 selection:text-theme-primary">
+      <HomePage />
+    </div>
   )
 }
 

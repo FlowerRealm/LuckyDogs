@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
-import { LotterySession, LotteryRound, Winner, ExcludedRecord } from '@/types'
+import { LotterySession, LotteryRound, Winner } from '@/types'
 
 interface LotteryStore {
   // 状态
@@ -16,7 +16,7 @@ interface LotteryStore {
   startSession: (totalParticipants: number) => void
   endSession: () => void
   startDraw: () => void
-  endDraw: (winners: Winner[], excluded: ExcludedRecord[]) => void
+  endDraw: (winners: Winner[]) => void
   revealWinner: (winner: Winner) => void
   revealAllWinners: () => void
   resetRound: () => void
@@ -70,14 +70,13 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
     }))
   },
 
-  endDraw: (winners, excluded) => {
+  endDraw: (winners) => {
     const { currentRound, drawCount } = get()
 
     const round: LotteryRound = {
       roundNumber: currentRound,
       drawCount,
       winners,
-      excludedByRule: excluded,
       timestamp: new Date().toISOString(),
     }
 
