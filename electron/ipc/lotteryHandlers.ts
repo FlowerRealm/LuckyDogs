@@ -22,11 +22,6 @@ export function registerLotteryHandlers(): void {
     manager.destroyEngine()
   })
 
-  // 单次抽奖
-  ipcMain.handle('lottery:drawOne', async () => {
-    return manager.drawOne()
-  })
-
   // 多人抽奖
   ipcMain.handle('lottery:drawMultiple', async (_, count: number) => {
     return manager.drawMultiple(count)

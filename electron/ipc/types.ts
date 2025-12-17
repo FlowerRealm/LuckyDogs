@@ -9,10 +9,8 @@ export interface Participant {
   id: string
   name: string
   weight: number
-  avatar?: string
   wonAt?: string
   wonInRound?: number
-  metadata?: Record<string, any>
 }
 
 export enum RuleType {
@@ -47,11 +45,6 @@ export interface EngineInitResult {
   error?: string
 }
 
-export interface DrawResult {
-  winner: Winner | null
-  boundWinners: Winner[] // 绑定规则触发的自动中奖者
-}
-
 export interface MultiDrawResult {
   winners: Winner[]
 }
@@ -67,7 +60,6 @@ export interface LotteryStats {
 export interface LotteryAPI {
   init: (data: EngineInitData) => Promise<EngineInitResult>
   destroy: () => Promise<void>
-  drawOne: () => Promise<DrawResult>
   drawMultiple: (count: number) => Promise<MultiDrawResult>
   resetRound: () => Promise<void>
   getStats: () => Promise<LotteryStats>

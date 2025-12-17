@@ -8,7 +8,6 @@ import {
   Rule,
   RuleType,
   Winner,
-  DrawResult,
   MultiDrawResult,
   LotteryStats,
   EngineInitData,
@@ -61,6 +60,31 @@ class LotteryEngine {
   }
 
   /**
+   * 计算某人所在绑定组的总人数（包括自己）
+   * 用于在抽奖前预判抽中此人后会产生多少中奖者
+   */
+  private getBindingGroupSize(participantId: string): number {
+    const visited = new Set<string>([participantId])
+    const queue = [participantId]
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!
+      for (const rule of this.rules) {
+        if (rule.type !== RuleType.BINDING) continue
+        if (!rule.participantIds.includes(currentId)) continue
+
+        for (const memberId of rule.participantIds) {
+          if (!visited.has(memberId) && !this.currentRoundWinners.has(memberId)) {
+            visited.add(memberId)
+            queue.push(memberId)
+          }
+        }
+      }
+    }
+    return visited.size
+  }
+
+  /**
    * 应用绑定规则 - 当有人中奖时，绑定组内其他人自动中奖
    * 支持递归触发：如果 A-B 绑定，B-C 绑定，A 中奖则 B、C 都中奖
    */
@@ -102,58 +126,40 @@ class LotteryEngine {
   }
 
   /**
-   * 执行单次抽奖
-   */
-  public drawOne(): DrawResult {
-    const candidates = this.getEligibleCandidates()
-    const selected = this.weightedRandomSelect(candidates)
-
-    if (!selected) {
-      return { winner: null, boundWinners: [] }
-    }
-
-    this.currentRoundWinners.add(selected.id)
-    const boundWinners = this.applyBindingRules(selected.id)
-
-    const winner: Winner = {
-      participantId: selected.id,
-      participantName: selected.name,
-      drawOrder: this.currentRoundWinners.size - boundWinners.length, // 主中奖者的顺序
-    }
-
-    return { winner, boundWinners }
-  }
-
-  /**
    * 执行多人抽奖
    */
   public drawMultiple(count: number): MultiDrawResult {
     const winners: Winner[] = []
-    
-    // 收集所有绑定规则中的参与者ID
-    const boundParticipantIds = new Set<string>()
-    for (const rule of this.rules) {
-      if (rule.type === RuleType.BINDING) {
-        rule.participantIds.forEach(id => boundParticipantIds.add(id))
-      }
-    }
 
     while (winners.length < count) {
-      const result = this.drawOne()
-      if (result.winner) {
-        winners.push(result.winner)
-        winners.push(...result.boundWinners)
-        
-        // 如果超过上限，踢掉不在绑定组里的人
-        while (winners.length > count) {
-          const idx = winners.findIndex(w => !boundParticipantIds.has(w.participantId))
-          if (idx === -1) break // 没有可踢的人了
-          this.currentRoundWinners.delete(winners[idx].participantId)
-          winners.splice(idx, 1)
-        }
-      } else {
+      const candidates = this.getEligibleCandidates()
+      if (candidates.length === 0) break
+
+      // 筛选出绑定组大小 <= 剩余名额的候选人
+      const remaining = count - winners.length
+      const validCandidates = candidates.filter(
+        (c) => this.getBindingGroupSize(c.id) <= remaining
+      )
+
+      if (validCandidates.length === 0) {
+        // 没有符合条件的候选人，提前结束
         break
       }
+
+      // 从符合条件的候选人中加权随机选择
+      const selected = this.weightedRandomSelect(validCandidates)
+      if (!selected) break
+
+      // 标记中奖并应用绑定规则
+      this.currentRoundWinners.add(selected.id)
+      const boundWinners = this.applyBindingRules(selected.id)
+
+      winners.push({
+        participantId: selected.id,
+        participantName: selected.name,
+        drawOrder: winners.length + 1,
+      })
+      winners.push(...boundWinners)
     }
 
     return { winners }
@@ -245,16 +251,6 @@ export class LotteryEngineManager {
    */
   public hasEngine(): boolean {
     return this.engine !== null
-  }
-
-  /**
-   * 执行单次抽奖
-   */
-  public drawOne(): DrawResult {
-    if (!this.engine) {
-      return { winner: null, boundWinners: [] }
-    }
-    return this.engine.drawOne()
   }
 
   /**

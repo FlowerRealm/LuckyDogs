@@ -1,96 +1,44 @@
 import { create } from 'zustand'
-import { v4 as uuidv4 } from 'uuid'
-import { LotterySession, LotteryRound, Winner } from '@/types'
+import { Winner } from '@/types'
 
 interface LotteryStore {
   // 状态
   isDrawing: boolean
-  currentRound: number
   drawCount: number
-  currentSession: LotterySession | null
   pendingWinners: Winner[]
   revealedWinners: Winner[]
 
   // Actions
   setDrawCount: (count: number) => void
-  startSession: (totalParticipants: number) => void
-  endSession: () => void
   startDraw: () => void
   endDraw: (winners: Winner[]) => void
   revealWinner: (winner: Winner) => void
   revealAllWinners: () => void
   resetRound: () => void
   resetAll: () => void
-
-  // Getters
-  getCurrentRoundWinners: () => Winner[]
-  getAllSessionWinners: () => Winner[]
 }
 
-export const useLotteryStore = create<LotteryStore>((set, get) => ({
+export const useLotteryStore = create<LotteryStore>((set) => ({
   isDrawing: false,
-  currentRound: 0,
   drawCount: 1,
-  currentSession: null,
   pendingWinners: [],
   revealedWinners: [],
 
   setDrawCount: (count) => set({ drawCount: count }),
 
-  startSession: (totalParticipants) => {
-    const session: LotterySession = {
-      sessionId: uuidv4(),
-      startTime: new Date().toISOString(),
-      rounds: [],
-      totalParticipants,
-      totalWinners: 0,
-    }
+  startDraw: () => {
     set({
-      currentSession: session,
-      currentRound: 0,
+      isDrawing: true,
       pendingWinners: [],
       revealedWinners: [],
     })
   },
 
-  endSession: () => {
-    set((state) => ({
-      currentSession: state.currentSession
-        ? { ...state.currentSession, endTime: new Date().toISOString() }
-        : null,
-    }))
-  },
-
-  startDraw: () => {
-    set((state) => ({
-      isDrawing: true,
-      currentRound: state.currentRound + 1,
-      pendingWinners: [],
-      revealedWinners: [],
-    }))
-  },
-
   endDraw: (winners) => {
-    const { currentRound, drawCount } = get()
-
-    const round: LotteryRound = {
-      roundNumber: currentRound,
-      drawCount,
-      winners,
-      timestamp: new Date().toISOString(),
-    }
-
-    set((state) => ({
+    set({
       isDrawing: false,
       pendingWinners: winners,
-      currentSession: state.currentSession
-        ? {
-            ...state.currentSession,
-            rounds: [...state.currentSession.rounds, round],
-            totalWinners: state.currentSession.totalWinners + winners.length,
-          }
-        : null,
-    }))
+    })
   },
 
   revealWinner: (winner) => {
@@ -117,23 +65,8 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
   resetAll: () => {
     set({
       isDrawing: false,
-      currentRound: 0,
-      currentSession: null,
       pendingWinners: [],
       revealedWinners: [],
     })
-  },
-
-  getCurrentRoundWinners: () => {
-    const { currentSession, currentRound } = get()
-    if (!currentSession) return []
-    const round = currentSession.rounds.find((r) => r.roundNumber === currentRound)
-    return round?.winners ?? []
-  },
-
-  getAllSessionWinners: () => {
-    const { currentSession } = get()
-    if (!currentSession) return []
-    return currentSession.rounds.flatMap((r) => r.winners)
   },
 }))

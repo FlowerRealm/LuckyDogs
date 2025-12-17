@@ -1,27 +1,20 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react'
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useLotteryStore } from '@/store'
 import FlipCard from './FlipCard'
-import { Winner } from '@/types'
 
 export const LotteryWheel: React.FC = () => {
-  const {
-    pendingWinners,
-    revealedWinners,
-    isDrawing,
-    revealWinner
-  } = useLotteryStore()
+  // 细粒度 store 订阅，减少不必要的重渲染
+  const pendingWinners = useLotteryStore(state => state.pendingWinners)
+  const revealedWinners = useLotteryStore(state => state.revealedWinners)
+  const isDrawing = useLotteryStore(state => state.isDrawing)
+  const revealAllWinners = useLotteryStore(state => state.revealAllWinners)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
 
-  // 本地跟踪哪些卡片已翻转（用于动画）
-  const [flippedIds, setFlippedIds] = useState<Set<string>>(new Set())
-
-  // 使用 ref 存储翻转队列，避免闭包问题
-  const flipQueueRef = useRef<Winner[]>([])
-  const isFlippingRef = useRef(false)
-  const revealWinnerRef = useRef(revealWinner)
-  revealWinnerRef.current = revealWinner
+  // 是否应该翻转（统一控制所有卡片）
+  const [shouldFlip, setShouldFlip] = useState(false)
 
   // 合并所有中奖者为一个列表
   const allWinners = useMemo(() => {
@@ -30,65 +23,63 @@ export const LotteryWheel: React.FC = () => {
 
   const cardCount = allWinners.length + (isDrawing ? 1 : 0)
 
-  // 翻转下一张卡片的函数
-  const flipNext = () => {
-    if (flipQueueRef.current.length === 0) {
-      isFlippingRef.current = false
-      return
-    }
-
-    const winner = flipQueueRef.current[0]
-    console.log('[FlipCard] 翻转卡片:', winner.participantName)
-
-    // 触发翻转动画
-    setFlippedIds(prev => new Set([...prev, winner.participantId]))
-
-    // 动画完成后处理
-    setTimeout(() => {
-      // 更新 store
-      revealWinnerRef.current(winner)
-      // 从队列中移除
-      flipQueueRef.current = flipQueueRef.current.slice(1)
-      // 继续翻下一张
-      setTimeout(flipNext, 15)
-    }, 40)
-  }
-
-  // 当有新的 pendingWinners 时，启动翻转
+  // 当有新的 pendingWinners 时，触发同时翻转
   useEffect(() => {
-    if (pendingWinners.length > 0 && !isFlippingRef.current) {
-      console.log('[FlipCard] 检测到新的 pendingWinners:', pendingWinners.length)
-      flipQueueRef.current = [...pendingWinners]
-      isFlippingRef.current = true
+    if (pendingWinners.length > 0) {
+      // 计算入场动画总时长：基础 0.4s + 每张卡片错开 0.05s
+      const entryDelay = 400 + pendingWinners.length * 50
 
-      // 延迟开始，让卡片先显示出来
-      setTimeout(flipNext, 25)
+      // 入场动画完成后，同时翻转所有卡片
+      const flipTimer = setTimeout(() => {
+        setShouldFlip(true)
+      }, entryDelay)
+
+      // 翻转动画完成后（0.6s），更新 store
+      const revealTimer = setTimeout(() => {
+        revealAllWinners()
+      }, entryDelay + 600)
+
+      return () => {
+        clearTimeout(flipTimer)
+        clearTimeout(revealTimer)
+      }
     }
-  }, [pendingWinners])
+  }, [pendingWinners, revealAllWinners])
 
-  // 同步已揭晓的状态（用于页面刷新等场景）
-  useEffect(() => {
-    const revealedIds = new Set(revealedWinners.map(w => w.participantId))
-    setFlippedIds(prev => {
-      const newSet = new Set(prev)
-      revealedIds.forEach(id => newSet.add(id))
-      return newSet
-    })
-  }, [revealedWinners])
-
-  // 重置状态：当 pendingWinners 和 revealedWinners 都为空时，清空本地状态
+  // 重置状态：当 pendingWinners 和 revealedWinners 都为空时
   useEffect(() => {
     if (pendingWinners.length === 0 && revealedWinners.length === 0) {
-      setFlippedIds(new Set())
-      flipQueueRef.current = []
-      isFlippingRef.current = false
+      setShouldFlip(false)
     }
   }, [pendingWinners.length, revealedWinners.length])
 
-  // 监听容器尺寸变化
+  // 使用 Set 进行 O(1) 查询优化
+  const revealedWinnerIds = useMemo(() =>
+    new Set(revealedWinners.map(w => w.participantId)),
+    [revealedWinners]
+  )
+
+  const pendingWinnerIds = useMemo(() =>
+    new Set(pendingWinners.map(w => w.participantId)),
+    [pendingWinners]
+  )
+
+  // 已揭晓的卡片始终显示正面 - O(1) 查询
+  const isCardRevealed = useCallback((winnerId: string) => {
+    return revealedWinnerIds.has(winnerId) ||
+           (pendingWinnerIds.has(winnerId) && shouldFlip)
+  }, [revealedWinnerIds, pendingWinnerIds, shouldFlip])
+
+  // 监听容器尺寸变化（带防抖）
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    let timeoutId: ReturnType<typeof setTimeout>
+    const debouncedSetSize = (width: number, height: number) => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => setContainerSize({ width, height }), 100)
+    }
 
     const updateSize = () => {
       const { width, height } = container.getBoundingClientRect()
@@ -99,10 +90,13 @@ export const LotteryWheel: React.FC = () => {
 
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect
-      setContainerSize({ width, height })
+      debouncedSetSize(width, height)
     })
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      clearTimeout(timeoutId)
+      observer.disconnect()
+    }
   }, [])
 
   // 自适应网格算法
@@ -155,28 +149,30 @@ export const LotteryWheel: React.FC = () => {
           alignContent: 'center',
         }}
       >
-        {/* 渲染所有中奖者卡片 */}
-        {allWinners.map((winner) => {
-          const isFlipped = flippedIds.has(winner.participantId)
-
-          return (
+        <AnimatePresence mode="sync">
+          {/* 渲染所有中奖者卡片 */}
+          {allWinners.map((winner, index) => (
             <FlipCard
               key={winner.participantId}
               winner={winner}
-              isRevealed={isFlipped}
+              isRevealed={isCardRevealed(winner.participantId)}
               size={gridConfig.cardSize}
+              index={index}
             />
-          )
-        })}
+          ))}
+        </AnimatePresence>
 
         {/* 如果正在抽奖中（Loading态） */}
         {isDrawing && (
-          <div
-            className="card-base animate-pulse flex items-center justify-center"
+          <motion.div
+            className="card-base flex items-center justify-center"
             style={{ width: gridConfig.cardSize, height: gridConfig.cardSize }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
           >
-            <div className="w-8 h-8 border-4 border-theme-primary/30 border-t-theme-primary rounded-full animate-spin"></div>
-          </div>
+            <div className="w-8 h-8 border-4 border-theme-primary/30 border-t-theme-primary rounded-full animate-spin" />
+          </motion.div>
         )}
       </div>
     </div>

@@ -30,8 +30,6 @@ export const useParticipantStore = create<ParticipantState>()(
         id: uuidv4(),
         name: input.name,
         weight: input.weight ?? 1,
-        avatar: input.avatar,
-        metadata: input.metadata,
       }
       set((state) => ({
         participants: [...state.participants, newParticipant],

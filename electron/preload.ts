@@ -12,11 +12,6 @@ interface EngineInitResult {
   error?: string
 }
 
-interface DrawResult {
-  winner: any | null
-  boundWinners: any[] // 绑定规则触发的自动中奖者
-}
-
 interface MultiDrawResult {
   winners: any[]
 }
@@ -31,19 +26,10 @@ interface LotteryStats {
 export interface ElectronAPI {
   config: {
     load: () => Promise<any>
-    save: (config: any) => Promise<{ success: boolean }>
-    reset: () => Promise<any>
-    export: () => Promise<{ success: boolean; path?: string }>
-    import: () => Promise<{ success: boolean; config?: any }>
-  }
-  app: {
-    getVersion: () => Promise<string>
-    getPlatform: () => string
   }
   lottery: {
     init: (data: EngineInitData) => Promise<EngineInitResult>
     destroy: () => Promise<void>
-    drawOne: () => Promise<DrawResult>
     drawMultiple: (count: number) => Promise<MultiDrawResult>
     resetRound: () => Promise<void>
     getStats: () => Promise<LotteryStats>
@@ -55,19 +41,10 @@ export interface ElectronAPI {
 contextBridge.exposeInMainWorld('electronAPI', {
   config: {
     load: () => ipcRenderer.invoke('config:load'),
-    save: (config: any) => ipcRenderer.invoke('config:save', config),
-    reset: () => ipcRenderer.invoke('config:reset'),
-    export: () => ipcRenderer.invoke('config:export'),
-    import: () => ipcRenderer.invoke('config:import'),
-  },
-  app: {
-    getVersion: () => ipcRenderer.invoke('app:version'),
-    getPlatform: () => process.platform,
   },
   lottery: {
     init: (data: EngineInitData) => ipcRenderer.invoke('lottery:init', data),
     destroy: () => ipcRenderer.invoke('lottery:destroy'),
-    drawOne: () => ipcRenderer.invoke('lottery:drawOne'),
     drawMultiple: (count: number) => ipcRenderer.invoke('lottery:drawMultiple', count),
     resetRound: () => ipcRenderer.invoke('lottery:resetRound'),
     getStats: () => ipcRenderer.invoke('lottery:getStats'),

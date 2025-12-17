@@ -1,5 +1,4 @@
 import { HomePage } from './pages/HomePage'
-import { Winner } from '@/types'
 
 // 抽奖 API 类型
 interface LotteryStats {
@@ -19,13 +18,8 @@ interface EngineInitResult {
   error?: string
 }
 
-interface DrawResult {
-  winner: Winner | null
-  boundWinners: Winner[] // 绑定规则触发的自动中奖者
-}
-
 interface MultiDrawResult {
-  winners: Winner[]
+  winners: any[]
 }
 
 // Electron API 类型声明
@@ -34,19 +28,10 @@ declare global {
     electronAPI?: {
       config: {
         load: () => Promise<{ participants?: any[]; rules?: any[] }>
-        save: (config: any) => Promise<{ success: boolean }>
-        reset: () => Promise<any>
-        export: () => Promise<{ success: boolean; path?: string }>
-        import: () => Promise<{ success: boolean; config?: any }>
-      }
-      app: {
-        getVersion: () => Promise<string>
-        getPlatform: () => string
       }
       lottery: {
         init: (data: EngineInitData) => Promise<EngineInitResult>
         destroy: () => Promise<void>
-        drawOne: () => Promise<DrawResult>
         drawMultiple: (count: number) => Promise<MultiDrawResult>
         resetRound: () => Promise<void>
         getStats: () => Promise<LotteryStats>

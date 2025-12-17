@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useLotteryStore, useParticipantStore, useRuleStore } from '@/store'
 import { LotteryWheel } from '@/components/lottery/LotteryWheel'
 
 export const HomePage: React.FC = () => {
   // Store Hooks
   const {
-    isDrawing, startSession, startDraw,
+    isDrawing, startDraw,
     endDraw, resetRound,
     revealedWinners
   } = useLotteryStore()
@@ -43,9 +44,6 @@ export const HomePage: React.FC = () => {
         })
         console.log('[DEBUG] 引擎初始化结果:', initResult)
         console.log('[DEBUG] 参与者数量:', config.participants?.length || 0)
-
-        // 3. 开始新会话（如果还没开始）
-        startSession((config.participants || []).length)
       } catch (error) {
         console.error("Failed to init:", error)
       } finally {
@@ -60,9 +58,12 @@ export const HomePage: React.FC = () => {
     if (isDrawing || participants.length === 0) return
     if (!window.electronAPI) return
 
+    // 清除上一轮结果
+    resetRound()
+
     startDraw()
     try {
-      // ★ 每次抽奖前自动重置引擎状态，确保全新抽奖
+      // 重置引擎状态，确保全新抽奖
       await window.electronAPI.lottery.resetRound()
 
       // 这里的 delay 仅为了视觉效果，让用户感觉到"抽奖中"
@@ -84,17 +85,6 @@ export const HomePage: React.FC = () => {
     }
   }
 
-  // 完整重置本轮（包括引擎状态）
-  const handleResetRound = async () => {
-    // 1. 重置前端 UI 状态
-    resetRound()
-
-    // 2. 重置引擎状态
-    if (window.electronAPI) {
-      await window.electronAPI.lottery.resetRound()
-    }
-  }
-
   // 复制中奖者名单到剪贴板
   const handleCopyWinners = async () => {
     if (revealedWinners.length === 0) return
@@ -112,16 +102,10 @@ export const HomePage: React.FC = () => {
     <div className="flex flex-col h-screen bg-theme-bg overflow-hidden relative">
 
       {/* 1. Header (顶部栏) */}
-      <header className="flex-none h-16 bg-white/80 backdrop-blur-md border-b border-theme-border flex items-center justify-between px-8 z-10">
+      <header className="flex-none h-16 bg-white/80 backdrop-blur-md border-b border-theme-border flex items-center px-8 z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-theme-primary rounded-lg flex items-center justify-center text-white font-bold">L</div>
           <h1 className="text-xl font-bold text-theme-text-main tracking-tight">Lucky Dogs</h1>
-        </div>
-
-        {/* 简单统计 */}
-        <div className="text-sm font-medium text-theme-text-sub flex gap-4">
-          <span>总人数: <strong className="text-theme-text-main">{participants.length}</strong></span>
-          <span>已中奖: <strong className="text-theme-primary">{useParticipantStore.getState().getWinners().length}</strong></span>
         </div>
       </header>
 
@@ -163,44 +147,79 @@ export const HomePage: React.FC = () => {
           {/* 右侧：操作按钮 */}
           <div className="flex gap-3">
             {/* 抽奖按钮 */}
-            <button
+            <motion.button
               onClick={handleDraw}
               disabled={isDrawing}
-              className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all transform flex items-center gap-2 ${
+              className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-2 ${
                 isDrawing
                   ? 'bg-slate-300 cursor-not-allowed'
-                  : 'bg-theme-primary hover:bg-indigo-600 shadow-indigo-500/30 hover:scale-105 active:scale-95'
+                  : 'bg-theme-primary shadow-indigo-500/30'
               }`}
+              whileHover={!isDrawing ? {
+                scale: 1.05,
+                boxShadow: '0 20px 40px -15px rgba(99, 102, 241, 0.5)'
+              } : {}}
+              whileTap={!isDrawing ? { scale: 0.95 } : {}}
+              animate={isDrawing ? {
+                scale: [1, 1.02, 1],
+                transition: { duration: 0.8, repeat: Infinity }
+              } : {
+                scale: 1
+              }}
+              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
             >
-              {isDrawing ? '抽奖中...' : '开始抽奖 ✨'}
-            </button>
-
-            {/* 重置按钮 (仅测试用，或放在设置里) */}
-            <button
-               onClick={handleResetRound}
-               className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-               title="重置本轮"
-            >
-               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            </button>
+              <AnimatePresence mode="wait">
+                {isDrawing ? (
+                  <motion.span
+                    key="loading"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center gap-2"
+                  >
+                    <motion.span
+                      className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                    />
+                    抽奖中...
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="ready"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    开始抽奖 ✨
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
 
             {/* 复制名单按钮 */}
             <button
                onClick={handleCopyWinners}
                disabled={revealedWinners.length === 0}
-               className={`p-3 rounded-xl transition-colors ${
+               className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors ${
                  revealedWinners.length === 0
-                   ? 'text-slate-300 cursor-not-allowed'
+                   ? 'text-slate-300 bg-slate-100 cursor-not-allowed'
                    : copied
-                     ? 'text-green-500 bg-green-50'
-                     : 'text-slate-400 hover:text-indigo-500 hover:bg-indigo-50'
+                     ? 'text-green-600 bg-green-50 border border-green-200'
+                     : 'text-slate-600 bg-slate-100 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200'
                }`}
                title={copied ? '已复制' : '复制中奖名单'}
             >
                {copied ? (
-                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                 <>
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                   已复制
+                 </>
                ) : (
-                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                 <>
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                   复制名单
+                 </>
                )}
             </button>
           </div>

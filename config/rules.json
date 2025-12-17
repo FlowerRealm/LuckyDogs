@@ -2,9 +2,9 @@
   {
     "id": "r001",
     "type": "binding",
-    "name": "任叶涵与周雨泽绑定",
+    "name": "partner",
     "participantIds": ["p003", "p024"],
-    "description": "任叶涵与周雨泽绑定获奖，一人中奖则另一人也中奖",
+    "description": "A greet partner",
     "isActive": true
   }
 ]
