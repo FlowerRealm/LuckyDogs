@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useLotteryStore } from '@/store'
+import { useLotteryStore, useRuleStore } from '@/store'
+import { RuleType, Winner } from '@/types'
 import FlipCard from './FlipCard'
 
 export const LotteryWheel: React.FC = () => {
@@ -9,6 +10,7 @@ export const LotteryWheel: React.FC = () => {
   const revealedWinners = useLotteryStore(state => state.revealedWinners)
   const isDrawing = useLotteryStore(state => state.isDrawing)
   const revealAllWinners = useLotteryStore(state => state.revealAllWinners)
+  const rules = useRuleStore(state => state.rules)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
@@ -21,7 +23,58 @@ export const LotteryWheel: React.FC = () => {
     return [...revealedWinners, ...pendingWinners]
   }, [revealedWinners, pendingWinners])
 
-  const cardCount = allWinners.length + (isDrawing ? 1 : 0)
+  const activeBindingRules = useMemo(() => {
+    return rules.filter((rule) => rule.isActive && rule.type === RuleType.BINDING)
+  }, [rules])
+
+  const winnerGroups = useMemo(() => {
+    if (allWinners.length === 0) return []
+
+    const winnerIds = new Set(allWinners.map(w => w.participantId))
+    const parent = new Map<string, string>()
+    for (const id of winnerIds) parent.set(id, id)
+
+    const find = (id: string): string => {
+      const current = parent.get(id)
+      if (!current) return id
+      if (current === id) return id
+      const root = find(current)
+      parent.set(id, root)
+      return root
+    }
+
+    const union = (a: string, b: string) => {
+      const rootA = find(a)
+      const rootB = find(b)
+      if (rootA !== rootB) parent.set(rootB, rootA)
+    }
+
+    for (const rule of activeBindingRules) {
+      const ids = rule.participantIds.filter((id) => winnerIds.has(id))
+      if (ids.length < 2) continue
+      const root = ids[0]
+      for (let i = 1; i < ids.length; i++) {
+        union(root, ids[i])
+      }
+    }
+
+    const groups: Winner[][] = []
+    let lastKey: string | null = null
+    for (const winner of allWinners) {
+      const key = find(winner.participantId)
+      if (lastKey === key && groups.length > 0) {
+        groups[groups.length - 1].push(winner)
+      } else {
+        groups.push([winner])
+        lastKey = key
+      }
+    }
+    return groups
+  }, [allWinners, activeBindingRules])
+
+  type RenderItem =
+    | { type: 'winner'; winner: Winner }
+    | { type: 'spacer' }
 
   // 当有新的 pendingWinners 时，触发同时翻转
   useEffect(() => {
@@ -99,31 +152,70 @@ export const LotteryWheel: React.FC = () => {
     }
   }, [])
 
-  // 自适应网格算法
-  const gridConfig = useMemo(() => {
-    const { width, height } = containerSize
+  // 自适应网格算法 + 绑定分组避开跨行
+  const { gridConfig, renderItems } = useMemo(() => {
     const gap = 12
+    const { width, height } = containerSize
 
-    if (width === 0 || height === 0 || cardCount === 0) {
-      return { cols: 8, cardSize: 100 }
+    const computeGridConfig = (cardCount: number) => {
+      if (width === 0 || height === 0 || cardCount === 0) {
+        return { cols: 8, cardSize: 100, gap }
+      }
+
+      const aspectRatio = width / height
+      const idealCols = Math.ceil(Math.sqrt(cardCount * aspectRatio))
+      const cols = Math.max(1, Math.min(idealCols, cardCount))
+      const rows = Math.ceil(cardCount / cols)
+
+      const availableWidth = width - (cols - 1) * gap
+      const availableHeight = height - (rows - 1) * gap
+
+      const maxCardWidth = availableWidth / cols
+      const maxCardHeight = availableHeight / rows
+      const cardSize = Math.floor(Math.min(maxCardWidth, maxCardHeight))
+
+      const finalSize = Math.max(60, Math.min(180, cardSize))
+
+      return { cols, cardSize: finalSize, gap }
     }
 
-    const aspectRatio = width / height
-    const idealCols = Math.ceil(Math.sqrt(cardCount * aspectRatio))
-    const cols = Math.max(1, Math.min(idealCols, cardCount))
-    const rows = Math.ceil(cardCount / cols)
+    const buildRenderItems = (groups: Winner[][], cols: number): RenderItem[] => {
+      const items: RenderItem[] = []
+      if (cols <= 0) return items
 
-    const availableWidth = width - (cols - 1) * gap
-    const availableHeight = height - (rows - 1) * gap
+      let col = 0
+      for (const group of groups) {
+        const size = group.length
+        if (size <= cols && col + size > cols) {
+          const fillers = cols - col
+          for (let i = 0; i < fillers; i++) {
+            items.push({ type: 'spacer' })
+          }
+          col = 0
+        }
 
-    const maxCardWidth = availableWidth / cols
-    const maxCardHeight = availableHeight / rows
-    const cardSize = Math.floor(Math.min(maxCardWidth, maxCardHeight))
+        for (const winner of group) {
+          items.push({ type: 'winner', winner })
+        }
+        col = (col + size) % cols
+      }
+      return items
+    }
 
-    const finalSize = Math.max(60, Math.min(180, cardSize))
+    let cardCount = allWinners.length + (isDrawing ? 1 : 0)
+    let grid = computeGridConfig(cardCount)
+    let items = buildRenderItems(winnerGroups, grid.cols)
+    let nextCount = items.length + (isDrawing ? 1 : 0)
 
-    return { cols, cardSize: finalSize, gap }
-  }, [containerSize, cardCount])
+    for (let i = 0; i < 2 && nextCount !== cardCount; i++) {
+      cardCount = nextCount
+      grid = computeGridConfig(cardCount)
+      items = buildRenderItems(winnerGroups, grid.cols)
+      nextCount = items.length + (isDrawing ? 1 : 0)
+    }
+
+    return { gridConfig: grid, renderItems: items }
+  }, [containerSize, allWinners.length, isDrawing, winnerGroups])
 
   if (allWinners.length === 0 && !isDrawing) {
     return (
@@ -151,15 +243,33 @@ export const LotteryWheel: React.FC = () => {
       >
         <AnimatePresence mode="sync">
           {/* 渲染所有中奖者卡片 */}
-          {allWinners.map((winner, index) => (
-            <FlipCard
-              key={winner.participantId}
-              winner={winner}
-              isRevealed={isCardRevealed(winner.participantId)}
-              size={gridConfig.cardSize}
-              index={index}
-            />
-          ))}
+          {(() => {
+            let winnerIndex = 0
+            return renderItems.map((item, index) => {
+              if (item.type === 'spacer') {
+                return (
+                  <div
+                    key={`spacer-${index}`}
+                    className="pointer-events-none opacity-0"
+                    style={{ width: gridConfig.cardSize, height: gridConfig.cardSize }}
+                    aria-hidden
+                  />
+                )
+              }
+
+              const winner = item.winner
+              const currentIndex = winnerIndex++
+              return (
+                <FlipCard
+                  key={winner.participantId}
+                  winner={winner}
+                  isRevealed={isCardRevealed(winner.participantId)}
+                  size={gridConfig.cardSize}
+                  index={currentIndex}
+                />
+              )
+            })
+          })()}
         </AnimatePresence>
 
         {/* 如果正在抽奖中（Loading态） */}
