@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Lucky Dogs (带权重和互斥规则的抽奖程序) is an Electron + React lottery application with weighted random selection and mutual exclusion rules. The app allows administrators to manage participants with different winning weights and define rules that prevent certain participants from winning together.
+Lucky Dogs (带权重和互斥规则的抽奖程序) is an Electron + React lottery application with weighted random selection and binding rules. The app allows administrators to manage participants with different winning weights and define binding rules that group participants together (when one wins, related participants in the group also win).
 
 ## Development Commands
 
@@ -24,24 +24,33 @@ npm run build:mac    # Build for macOS
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + TailwindCSS
 - **Desktop**: Electron 28 with Vite plugin integration
-- **State**: Zustand stores with persistence
+- **State**: Zustand stores (frontend) + LotteryEngineManager singleton (main process)
 - **UI**: Radix UI primitives + Framer Motion animations
 
 ### Key Directories
-- `electron/` - Electron main process (`main.ts`) and preload script (`preload.ts`)
-- `src/services/lotteryEngine.ts` - Core lottery logic with weighted selection and rule enforcement
+- `electron/` - Electron main process and IPC handlers
+  - `main.ts` - Window creation, config loading, IPC registration
+  - `preload.ts` - Context bridge for renderer access
+  - `ipc/lotteryManager.ts` - Core lottery engine with weighted selection and rule enforcement
+  - `ipc/lotteryHandlers.ts` - IPC handlers for lottery operations
 - `src/store/` - Zustand stores: `participantStore`, `ruleStore`, `lotteryStore`
-- `src/types/` - TypeScript interfaces for `Participant`, `Rule`, `LotterySession`
+- `src/types/` - TypeScript interfaces for `Participant`, `Rule`, `Winner`, `LotteryState`
+- `src/components/lottery/` - Lottery UI components (LotteryWheel, FlipCard)
 - `config/` - Default JSON data for participants and rules
-- `build/` - Build configs (electron-builder, tailwind, postcss)
+
+### Core Classes (electron/ipc/lotteryManager.ts)
+- **LotteryEngine** - Performs weighted random selection (`weightedRandomSelect`), manages eligible candidates (`getEligibleCandidates`), and applies binding rules (`applyBindingRules`)
+- **LotteryEngineManager** - Singleton that manages the LotteryEngine lifecycle, accessed via `getInstance()`
 
 ### Data Flow
-1. **Participants** have `id`, `name`, and `weight` (higher weight = higher chance)
-2. **Rules** define mutual exclusion groups (e.g., spouses can't both win)
-3. **LotteryEngine** performs weighted random selection while enforcing active rules
-4. State persists via Zustand middleware
+1. **Participants** have `id`, `name`, `weight`, and optional `wonAt`/`wonInRound` tracking
+2. **Rules** currently support `RuleType.BINDING` - groups participants so they win together
+3. **LotteryEngine** (main process) performs weighted selection while enforcing active rules
+4. Frontend communicates with main process via IPC (`window.electronAPI`)
+5. State persists via Zustand middleware (frontend) and JSON config files (initial data)
 
 ### Important Patterns
 - Path aliases: `@` → `src/`, `@config` → `config/`
-- Electron IPC is configured in `electron/main.ts` via `registerIpcHandlers()`
-- Config files are loaded from `config/` in dev, user data directory in production
+- Electron IPC handlers registered in `electron/main.ts` via `registerIpcHandlers()`
+- Lottery engine runs in main process, initialized via `lottery:init`, controlled via `lottery:draw`, `lottery:reset`
+- Config files loaded from `config/` in dev, user data directory in production

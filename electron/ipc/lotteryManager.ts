@@ -129,14 +129,15 @@ class LotteryEngine {
    * 执行多人抽奖
    */
   public drawMultiple(count: number): MultiDrawResult {
-    const winners: Winner[] = []
+    const winnerGroups: Winner[][] = []
+    let winnersCount = 0
 
-    while (winners.length < count) {
+    while (winnersCount < count) {
       const candidates = this.getEligibleCandidates()
       if (candidates.length === 0) break
 
       // 筛选出绑定组大小 <= 剩余名额的候选人
-      const remaining = count - winners.length
+      const remaining = count - winnersCount
       const validCandidates = candidates.filter(
         (c) => this.getBindingGroupSize(c.id) <= remaining
       )
@@ -154,15 +155,45 @@ class LotteryEngine {
       this.currentRoundWinners.add(selected.id)
       const boundWinners = this.applyBindingRules(selected.id)
 
-      winners.push({
-        participantId: selected.id,
-        participantName: selected.name,
-        drawOrder: winners.length + 1,
-      })
-      winners.push(...boundWinners)
+      const group: Winner[] = [
+        {
+          participantId: selected.id,
+          participantName: selected.name,
+          drawOrder: 0,
+        },
+        ...boundWinners.map((winner) => ({
+          ...winner,
+          drawOrder: 0,
+        })),
+      ]
+      winnerGroups.push(group)
+      winnersCount += group.length
     }
 
+    if (winnerGroups.length > 1) {
+      this.shuffleGroupsInPlace(winnerGroups)
+    }
+
+    const winners = winnerGroups.flat()
+    this.assignDrawOrder(winners)
+
     return { winners }
+  }
+
+  private shuffleGroupsInPlace(groups: Winner[][]): void {
+    for (let i = groups.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      if (i === j) continue
+      const temp = groups[i]
+      groups[i] = groups[j]
+      groups[j] = temp
+    }
+  }
+
+  private assignDrawOrder(winners: Winner[]): void {
+    for (let i = 0; i < winners.length; i++) {
+      winners[i].drawOrder = i + 1
+    }
   }
 
   /**
