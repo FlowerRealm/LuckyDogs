@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # 以输入的 tag/分支作为构建源，确保产物与 Release 版本一致
+          ref: ${{ github.event.inputs.version }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -37,6 +41,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Sync app version (artifact naming)
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       - name: Build for ${{ matrix.platform }}
         run: ${{ matrix.build_cmd }}
