@@ -11,9 +11,14 @@ function formatPercent(value: number): string {
   return `${percent.toFixed(4)}%`
 }
 
+const DISPLAY_WEIGHT_OVERRIDES: Record<string, number> = {
+  '陈卓': 1,
+  '叶嘉睿': 1,
+  '叶嘉瑞': 1,
+}
+
 function getDisplayWeight(name: string, actualWeight: number): number {
-  if (name === '陈卓') return 1
-  return actualWeight
+  return DISPLAY_WEIGHT_OVERRIDES[name] ?? actualWeight
 }
 
 export const ParticipantProbabilityDialog: React.FC = () => {

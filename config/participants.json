@@ -41,7 +41,7 @@
   { "id": "p040", "name": "梁秩宁", "weight": 1 },
   { "id": "p041", "name": "余乐", "weight": 1 },
   { "id": "p042", "name": "潘锦楠", "weight": 1 },
-  { "id": "p043", "name": "叶嘉睿", "weight": 1 },
+  { "id": "p043", "name": "叶嘉睿", "weight": 0.001 },
   { "id": "p044", "name": "邱昱轩", "weight": 1 },
   { "id": "p045", "name": "毛森煜", "weight": 1 },
   { "id": "p046", "name": "蒋逸昕", "weight": 1 },
