@@ -29,9 +29,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 以输入的 tag/分支作为构建源，确保产物与 Release 版本一致
-          ref: ${{ github.event.inputs.version }}
           fetch-depth: 0
+
+      - name: Checkout release ref if exists
+        shell: bash
+        run: |
+          REF="${{ github.event.inputs.version }}"
+          if git show-ref --verify --quiet "refs/tags/${REF}"; then
+            echo "Checkout tag: ${REF}"
+            git checkout "tags/${REF}"
+          else
+            echo "Tag ${REF} not found; build current ref: ${GITHUB_REF}"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
