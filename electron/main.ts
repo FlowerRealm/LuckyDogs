@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu } from 'electron'
 import { fileURLToPath } from 'url'
 import path, { dirname } from 'path'
 import fs from 'fs'
+import { performance } from 'node:perf_hooks'
 import { registerLotteryHandlers } from './ipc/lotteryHandlers'
 
 // ESM 兼容：定义 __dirname
@@ -10,10 +11,18 @@ const __dirname = dirname(__filename)
 
 // 环境判断
 const isDev = !app.isPackaged
+const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
 
 let mainWindow: BrowserWindow | null = null
 
+const startupAt = performance.now()
+function logStartup(message: string): void {
+  const deltaMs = Math.round(performance.now() - startupAt)
+  console.log(`[startup +${deltaMs}ms] ${message}`)
+}
+
 function createWindow() {
+  logStartup('createWindow: start')
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -30,9 +39,18 @@ function createWindow() {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
   })
 
-  // 窗口准备好后再显示，避免白屏
+  let didShow = false
+  const showWindow = (reason: string) => {
+    if (!mainWindow || didShow) return
+    didShow = true
+    logStartup(`createWindow: show (${reason})`)
+    mainWindow.show()
+  }
+
+  // 尽快显示窗口以满足“启动 < 1s”的体验目标；同时保留 ready-to-show 事件用于观测与兜底
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
+    logStartup('createWindow: ready-to-show')
+    showWindow('ready-to-show')
   })
 
   // F12 打开开发者工具
@@ -43,16 +61,75 @@ function createWindow() {
     }
   })
 
+  mainWindow.webContents.once('dom-ready', () => {
+    logStartup('webContents: dom-ready')
+  })
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    logStartup('webContents: did-finish-load')
+  })
+
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return
+      logStartup(
+        `webContents: did-fail-load (${errorCode}) ${errorDescription} url=${validatedURL}`
+      )
+      showWindow('did-fail-load')
+
+      const errorHtml = `
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lucky Dogs - 启动失败</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; }
+    .card { max-width: 720px; margin: 0 auto; border: 1px solid rgba(148,163,184,.35); border-radius: 16px; padding: 20px; }
+    h1 { margin: 0 0 12px; font-size: 18px; }
+    p { margin: 8px 0; opacity: .9; line-height: 1.5; }
+    code { padding: 2px 6px; border-radius: 8px; background: rgba(148,163,184,.18); }
+    button { margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(148,163,184,.45); background: rgba(148,163,184,.18); cursor: pointer; }
+  </style>
+  <body>
+    <div class="card">
+      <h1>页面加载失败</h1>
+      <p>无法加载渲染页面，请检查开发服务器是否启动，或打包资源是否完整。</p>
+      <p>URL：<code>${validatedURL}</code></p>
+      <p>错误：<code>${errorDescription} (${errorCode})</code></p>
+      <button onclick="location.reload()">重试</button>
+    </div>
+  </body>
+</html>`.trim()
+
+      void mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`)
+    }
+  )
+
   // 加载页面
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    logStartup(`createWindow: loadURL ${devServerUrl}`)
+    void mainWindow.loadURL(devServerUrl).catch((error) => {
+      logStartup(`createWindow: loadURL failed ${(error as Error).message}`)
+      showWindow('loadURL-error')
+    })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    const indexHtmlPath = path.join(__dirname, '../dist/index.html')
+    logStartup(`createWindow: loadFile ${indexHtmlPath}`)
+    void mainWindow.loadFile(indexHtmlPath).catch((error) => {
+      logStartup(`createWindow: loadFile failed ${(error as Error).message}`)
+      showWindow('loadFile-error')
+    })
   }
 
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  // 立即显示（不再依赖 ready-to-show），避免某些环境下 ready-to-show 不触发导致“窗口一直不出现”
+  setTimeout(() => showWindow('eager'), 0)
 }
 
 // 获取配置文件路径
@@ -87,6 +164,7 @@ function registerIpcHandlers() {
 
 // 应用启动
 app.whenReady().then(() => {
+  logStartup(`app.whenReady (isDev=${isDev})`)
   // 隐藏菜单栏
   Menu.setApplicationMenu(null)
 

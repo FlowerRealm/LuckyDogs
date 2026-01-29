@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLotteryStore, useParticipantStore, useRuleStore } from '@/store'
 import { LotteryWheel } from '@/components/lottery/LotteryWheel'
+import { ParticipantProbabilityDialog } from '@/components/participants/ParticipantProbabilityDialog'
 
 export const HomePage: React.FC = () => {
   // Store Hooks
@@ -106,6 +107,9 @@ export const HomePage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-theme-primary rounded-lg flex items-center justify-center text-white font-bold">L</div>
           <h1 className="text-xl font-bold text-theme-text-main tracking-tight">Lucky Dogs</h1>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <ParticipantProbabilityDialog />
         </div>
       </header>
 
