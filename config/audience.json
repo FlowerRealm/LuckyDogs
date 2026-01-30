@@ -1,0 +1,13 @@
+{
+  "members": [
+    { "id": "a001", "name": "张逸轩", "vip": true }
+  ],
+  "triggers": [
+    {
+      "type": "hitsOnDrawCount",
+      "drawCount": 1,
+      "participantIds": ["p043"],
+      "minHits": 1
+    }
+  ]
+}

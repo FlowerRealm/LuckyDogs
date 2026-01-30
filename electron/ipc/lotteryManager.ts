@@ -247,9 +247,58 @@ export class LotteryEngineManager {
       console.log('[LotteryManager] rules 类型:', typeof data.rules, Array.isArray(data.rules), data.rules)
 
       // 确保 rules 是数组
+      const participants = Array.isArray(data.participants) ? data.participants : []
       const rules = Array.isArray(data.rules) ? data.rules : []
+      const audienceIds = Array.isArray(data.audienceIds)
+        ? data.audienceIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
 
-      this.engine = new LotteryEngine(data.participants, rules)
+      const participantIdSet = new Set(participants.map((p) => p.id))
+      const audienceIdSet = new Set(audienceIds)
+
+      for (const id of audienceIdSet) {
+        if (participantIdSet.has(id)) {
+          return {
+            success: false,
+            stats: {
+              totalParticipants: participants.length,
+              eligibleCount: participants.length,
+              winnersCount: 0,
+            },
+            error: `观众席成员 ID 与参与者重复：${id}`,
+          }
+        }
+      }
+
+      for (const rule of rules) {
+        if (!rule.isActive) continue
+        for (const id of rule.participantIds) {
+          if (audienceIdSet.has(id)) {
+            return {
+              success: false,
+              stats: {
+                totalParticipants: participants.length,
+                eligibleCount: participants.length,
+                winnersCount: 0,
+              },
+              error: `规则「${rule.name}」引用了观众席成员：${id}`,
+            }
+          }
+          if (!participantIdSet.has(id)) {
+            return {
+              success: false,
+              stats: {
+                totalParticipants: participants.length,
+                eligibleCount: participants.length,
+                winnersCount: 0,
+              },
+              error: `规则「${rule.name}」引用了不存在的参与者：${id}`,
+            }
+          }
+        }
+      }
+
+      this.engine = new LotteryEngine(participants, rules)
       const stats = this.engine.getStats()
       console.log('[LotteryManager] 引擎初始化成功，统计:', stats)
       return {

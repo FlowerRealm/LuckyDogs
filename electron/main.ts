@@ -143,14 +143,16 @@ function getConfigPath(): string {
 // 加载默认配置
 async function loadDefaultConfig() {
   const configPath = getConfigPath()
-  const [participants, rules] = await Promise.all([
+  const [participants, rules, audience] = await Promise.all([
     fs.promises.readFile(path.join(configPath, 'participants.json'), 'utf-8').catch(() => '[]'),
     fs.promises.readFile(path.join(configPath, 'rules.json'), 'utf-8').catch(() => '[]'),
+    fs.promises.readFile(path.join(configPath, 'audience.json'), 'utf-8').catch(() => '{"members":[],"triggers":[]}'),
   ])
 
   return {
     participants: JSON.parse(participants),
     rules: JSON.parse(rules),
+    audience: JSON.parse(audience),
   }
 }
 

@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useLotteryStore, useParticipantStore, useRuleStore } from '@/store'
+import { useLotteryStore, useParticipantStore, useRuleStore, useAudienceStore } from '@/store'
 import { LotteryWheel } from '@/components/lottery/LotteryWheel'
 import { ParticipantProbabilityDialog } from '@/components/participants/ParticipantProbabilityDialog'
+import { normalizeAudienceConfig } from '@/types'
 
 export const HomePage: React.FC = () => {
   // Store Hooks
   const {
     isDrawing, startDraw,
     endDraw, resetRound,
-    revealedWinners
+    revealedWinners,
   } = useLotteryStore()
   const { setParticipants, participants } = useParticipantStore()
   const { setRules } = useRuleStore()
+  const { setConfig: setAudienceConfig } = useAudienceStore()
 
   // Local State
   const [drawCount, setDrawCount] = useState(1)
   const [drawCountInput, setDrawCountInput] = useState('1')
   const [isInitializing, setIsInitializing] = useState(true)
+  const [initError, setInitError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   // 初始化逻辑
@@ -37,16 +40,26 @@ export const HomePage: React.FC = () => {
         if (config.rules) {
           setRules(config.rules)
         }
+        if (config.audience) {
+          setAudienceConfig(normalizeAudienceConfig(config.audience))
+        } else {
+          setAudienceConfig(normalizeAudienceConfig(null))
+        }
 
         // 2. 初始化引擎
         const initResult = await window.electronAPI.lottery.init({
           participants: config.participants || [],
-          rules: config.rules || []
+          rules: config.rules || [],
+          audienceIds: (config.audience?.members || []).map((m: any) => m.id).filter((id: any) => typeof id === 'string'),
         })
         console.log('[DEBUG] 引擎初始化结果:', initResult)
         console.log('[DEBUG] 参与者数量:', config.participants?.length || 0)
+        if (!initResult.success) {
+          setInitError(initResult.error || '引擎初始化失败')
+        }
       } catch (error) {
         console.error("Failed to init:", error)
+        setInitError(error instanceof Error ? error.message : '初始化失败')
       } finally {
         setIsInitializing(false)
       }
@@ -57,12 +70,13 @@ export const HomePage: React.FC = () => {
   // 抽奖处理
   const handleDraw = async () => {
     if (isDrawing || participants.length === 0) return
+    if (initError) return
     if (!window.electronAPI) return
 
     // 清除上一轮结果
     resetRound()
 
-    startDraw()
+    startDraw(drawCount)
     try {
       // 重置引擎状态，确保全新抽奖
       await window.electronAPI.lottery.resetRound()
@@ -99,6 +113,22 @@ export const HomePage: React.FC = () => {
     return <div className="h-screen flex items-center justify-center text-theme-primary">Loading...</div>
   }
 
+  if (initError) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-theme-bg p-8">
+        <div className="max-w-xl w-full card-base p-6">
+          <h2 className="text-lg font-bold text-theme-text-main">初始化失败</h2>
+          <p className="mt-2 text-sm text-theme-text-sub">
+            {initError}
+          </p>
+          <div className="mt-4 text-sm text-theme-text-sub">
+            请检查 <span className="font-semibold text-theme-text-main">config/</span> 下的配置文件是否正确（尤其是规则是否引用了不存在的参与者/观众席成员）。
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-screen bg-theme-bg overflow-hidden relative">
 
@@ -116,7 +146,7 @@ export const HomePage: React.FC = () => {
       {/* 2. Main Content (抽奖区 - 自适应缩放) */}
       <main className="flex-1 overflow-hidden p-4">
         <div className="h-full">
-           <LotteryWheel />
+          <LotteryWheel />
         </div>
       </main>
 

@@ -10,6 +10,7 @@ interface LotteryStats {
 interface EngineInitData {
   participants: any[]
   rules: any[]
+  audienceIds?: string[]
 }
 
 interface EngineInitResult {
@@ -27,7 +28,7 @@ declare global {
   interface Window {
     electronAPI?: {
       config: {
-        load: () => Promise<{ participants?: any[]; rules?: any[] }>
+        load: () => Promise<{ participants?: any[]; rules?: any[]; audience?: any }>
       }
       lottery: {
         init: (data: EngineInitData) => Promise<EngineInitResult>

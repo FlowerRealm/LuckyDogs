@@ -10,7 +10,7 @@ interface LotteryStore {
 
   // Actions
   setDrawCount: (count: number) => void
-  startDraw: () => void
+  startDraw: (count: number) => void
   endDraw: (winners: Winner[]) => void
   revealWinner: (winner: Winner) => void
   revealAllWinners: () => void
@@ -26,9 +26,10 @@ export const useLotteryStore = create<LotteryStore>((set) => ({
 
   setDrawCount: (count) => set({ drawCount: count }),
 
-  startDraw: () => {
+  startDraw: (count) => {
     set({
       isDrawing: true,
+      drawCount: count,
       pendingWinners: [],
       revealedWinners: [],
     })

@@ -37,6 +37,7 @@ export interface Winner {
 export interface EngineInitData {
   participants: Participant[]
   rules: Rule[]
+  audienceIds?: string[]
 }
 
 export interface EngineInitResult {

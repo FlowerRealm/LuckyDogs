@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 interface EngineInitData {
   participants: any[]
   rules: any[]
+  audienceIds?: string[]
 }
 
 interface EngineInitResult {

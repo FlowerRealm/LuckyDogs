@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useLotteryStore, useRuleStore } from '@/store'
-import { RuleType, Winner } from '@/types'
+import { useAudienceStore, useLotteryStore, useRuleStore } from '@/store'
+import { AudienceMember, RuleType, Winner, isAudienceTriggered } from '@/types'
 import FlipCard from './FlipCard'
 
 export const LotteryWheel: React.FC = () => {
@@ -9,8 +9,10 @@ export const LotteryWheel: React.FC = () => {
   const pendingWinners = useLotteryStore(state => state.pendingWinners)
   const revealedWinners = useLotteryStore(state => state.revealedWinners)
   const isDrawing = useLotteryStore(state => state.isDrawing)
+  const drawCount = useLotteryStore(state => state.drawCount)
   const revealAllWinners = useLotteryStore(state => state.revealAllWinners)
   const rules = useRuleStore(state => state.rules)
+  const audienceConfig = useAudienceStore((s) => s.config)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
@@ -22,6 +24,15 @@ export const LotteryWheel: React.FC = () => {
   const allWinners = useMemo(() => {
     return [...revealedWinners, ...pendingWinners]
   }, [revealedWinners, pendingWinners])
+
+  const audienceMembers = useMemo((): AudienceMember[] => {
+    const triggered = isAudienceTriggered({
+      triggers: audienceConfig.triggers,
+      winners: allWinners,
+      drawCount,
+    })
+    return triggered ? audienceConfig.members : []
+  }, [audienceConfig.members, audienceConfig.triggers, allWinners, drawCount])
 
   const activeBindingRules = useMemo(() => {
     return rules.filter((rule) => rule.isActive && rule.type === RuleType.BINDING)
@@ -74,6 +85,7 @@ export const LotteryWheel: React.FC = () => {
 
   type RenderItem =
     | { type: 'winner'; winner: Winner }
+    | { type: 'audience'; member: AudienceMember }
     | { type: 'spacer' }
 
   // 当有新的 pendingWinners 时，触发同时翻转
@@ -179,7 +191,7 @@ export const LotteryWheel: React.FC = () => {
       return { cols, cardSize: finalSize, gap }
     }
 
-    const buildRenderItems = (groups: Winner[][], cols: number): RenderItem[] => {
+    const buildRenderItems = (groups: Winner[][], cols: number, audience: AudienceMember[]): RenderItem[] => {
       const items: RenderItem[] = []
       if (cols <= 0) return items
 
@@ -199,23 +211,30 @@ export const LotteryWheel: React.FC = () => {
         }
         col = (col + size) % cols
       }
+
+      for (const member of audience) {
+        items.push({ type: 'audience', member })
+        col = (col + 1) % cols
+      }
       return items
     }
 
-    let cardCount = allWinners.length + (isDrawing ? 1 : 0)
+    let cardCount = allWinners.length + audienceMembers.length + (isDrawing ? 1 : 0)
     let grid = computeGridConfig(cardCount)
-    let items = buildRenderItems(winnerGroups, grid.cols)
+    let items = buildRenderItems(winnerGroups, grid.cols, audienceMembers)
     let nextCount = items.length + (isDrawing ? 1 : 0)
 
     for (let i = 0; i < 2 && nextCount !== cardCount; i++) {
       cardCount = nextCount
       grid = computeGridConfig(cardCount)
-      items = buildRenderItems(winnerGroups, grid.cols)
+      items = buildRenderItems(winnerGroups, grid.cols, audienceMembers)
       nextCount = items.length + (isDrawing ? 1 : 0)
     }
 
     return { gridConfig: grid, renderItems: items }
-  }, [containerSize, allWinners.length, isDrawing, winnerGroups])
+  }, [containerSize, allWinners.length, audienceMembers, isDrawing, winnerGroups])
+
+  const seatFontSize = gridConfig.cardSize < 80 ? 'text-sm' : gridConfig.cardSize < 120 ? 'text-base' : 'text-xl'
 
   if (allWinners.length === 0 && !isDrawing) {
     return (
@@ -254,6 +273,29 @@ export const LotteryWheel: React.FC = () => {
                     style={{ width: gridConfig.cardSize, height: gridConfig.cardSize }}
                     aria-hidden
                   />
+                )
+              }
+
+              if (item.type === 'audience') {
+                const member = item.member
+                const isVip = member.vip === true
+                const seatClass = isVip
+                  ? 'border-2 border-amber-400 shadow-[0_18px_28px_-18px_rgba(245,158,11,0.9)] ring-2 ring-amber-300/35 bg-gradient-to-br from-amber-200 via-amber-50 to-white'
+                  : 'border border-theme-border bg-theme-card'
+
+                return (
+                  <motion.div
+                    key={`audience-${member.id}`}
+                    className={`rounded-2xl shadow-soft flex items-center justify-center p-2 ${seatClass}`}
+                    style={{ width: gridConfig.cardSize, height: gridConfig.cardSize }}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                  >
+                    <h3 className={`${seatFontSize} font-bold text-theme-text-main text-center truncate px-1`}>
+                      {member.name}
+                    </h3>
+                  </motion.div>
                 )
               }
 
